@@ -1,0 +1,158 @@
+[
+    {
+        "id": "tab-flow1",
+        "type": "tab",
+        "label": "Sensor Gateway Flow",
+        "disabled": false,
+        "info": ""
+    },
+    {
+        "id": "mqtt-broker-config",
+        "type": "mqtt-broker",
+        "name": "Local Mosquitto",
+        "broker": "mosquitto",
+        "port": "1883",
+        "clientid": "nodered-client",
+        "autoConnect": true,
+        "usetls": false,
+        "compatmode": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthPayload": "",
+        "closeTopic": "",
+        "closeQos": "0",
+        "closePayload": "",
+        "willTopic": "",
+        "willQos": "0",
+        "willPayload": ""
+    },
+    {
+        "id": "influxdb-config",
+        "type": "influxdb",
+        "name": "InfluxDB 2",
+        "usetls": false,
+        "influxdbVersion": "2.0",
+        "url": "http://influxdb:8086",
+        "rejectUnauthorized": true
+    },
+    {
+        "id": "mqtt-in-joystick",
+        "type": "mqtt in",
+        "z": "tab-flow1",
+        "name": "Joystick Topic",
+        "topic": "controller/joystick",
+        "qos": "0",
+        "datatype": "json",
+        "broker": "mqtt-broker-config",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 160,
+        "y": 140,
+        "wires": [
+            [
+                "fn-joystick"
+            ]
+        ]
+    },
+    {
+        "id": "mqtt-in-buttons",
+        "type": "mqtt in",
+        "z": "tab-flow1",
+        "name": "Buttons Topic",
+        "topic": "controller/buttons",
+        "qos": "0",
+        "datatype": "json",
+        "broker": "mqtt-broker-config",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 160,
+        "y": 240,
+        "wires": [
+            [
+                "fn-buttons"
+            ]
+        ]
+    },
+    {
+        "id": "fn-joystick",
+        "type": "function",
+        "z": "tab-flow1",
+        "name": "Validate & Process Joystick",
+        "func": "try {\n    let data = typeof msg.payload === \"object\" ? msg.payload : JSON.parse(msg.payload);\n    \n    // Validation\n    if (typeof data.x !== \"number\" || typeof data.y !== \"number\") {\n        node.error(\"Invalid joystick coordinates: x and y must be numbers\");\n        return null;\n    }\n    if (data.x < -100 || data.x > 100 || data.y < -100 || data.y > 100) {\n        // Log alert/warning\n        node.warn(\"Joystick values out of bounds [-100, 100]: \" + JSON.stringify(data));\n        return null;\n    }\n    \n    // Recalculation\n    let normX = data.x / 100.0;\n    let normY = data.y / 100.0;\n    let distance = Math.sqrt(normX * normX + normY * normY);\n    \n    // Map to InfluxDB format\n    msg.payload = {\n        x: normX,\n        y: normY,\n        distance: distance\n    };\n    msg.measurement = \"joystick\";\n    return msg;\n} catch (e) {\n    node.error(\"Failed to parse joystick payload: \" + e.message);\n    return null;\n}",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 420,
+        "y": 140,
+        "wires": [
+            [
+                "influx-out",
+                "debug-out"
+            ]
+        ]
+    },
+    {
+        "id": "fn-buttons",
+        "type": "function",
+        "z": "tab-flow1",
+        "name": "Validate & Process Buttons",
+        "func": "try {\n    let data = typeof msg.payload === \"object\" ? msg.payload : JSON.parse(msg.payload);\n    \n    // Validation\n    if (typeof data.button_a !== \"boolean\" || typeof data.button_b !== \"boolean\") {\n        node.error(\"Invalid buttons state: must be booleans\");\n        return null;\n    }\n    \n    // Recalculation/Mapping (InfluxDB stores numbers better than booleans)\n    msg.payload = {\n        button_a: data.button_a ? 1 : 0,\n        button_b: data.button_b ? 1 : 0\n    };\n    msg.measurement = \"buttons\";\n    return msg;\n} catch (e) {\n    node.error(\"Failed to parse buttons payload: \" + e.message);\n    return null;\n}",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 420,
+        "y": 240,
+        "wires": [
+            [
+                "influx-out",
+                "debug-out"
+            ]
+        ]
+    },
+    {
+        "id": "influx-out",
+        "type": "influxdb out",
+        "z": "tab-flow1",
+        "influxdb": "influxdb-config",
+        "name": "InfluxDB Write",
+        "measurement": "",
+        "precision": "",
+        "retentionPolicy": "",
+        "database": "",
+        "precisionV18FluxV20": "ms",
+        "retentionPolicyV18Flux": "",
+        "org": "sensor_gateway",
+        "bucket": "sensor_data",
+        "x": 680,
+        "y": 180,
+        "wires": []
+    },
+    {
+        "id": "debug-out",
+        "type": "debug",
+        "z": "tab-flow1",
+        "name": "Debug Output",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 680,
+        "y": 260,
+        "wires": []
+    }
+]

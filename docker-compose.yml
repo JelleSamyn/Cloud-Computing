@@ -1,0 +1,100 @@
+networks:
+  gateway_net:
+    driver: bridge
+
+volumes:
+  mosquitto_data:
+  mosquitto_log:
+  influxdb_data:
+  influxdb_config:
+  portainer_data:
+
+services:
+  # MQTT Broker (Mosquitto)
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    container_name: gateway_mosquitto
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+    networks:
+      - gateway_net
+    restart: always
+
+  # Time Series Database (InfluxDB v2)
+  influxdb:
+    image: influxdb:2.7
+    container_name: gateway_influxdb
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=adminpassword123
+      - DOCKER_INFLUXDB_INIT_ORG=sensor_gateway
+      - DOCKER_INFLUXDB_INIT_BUCKET=sensor_data
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=my-super-secret-admin-token-123456789
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+      - influxdb_config:/etc/influxdb2
+    networks:
+      - gateway_net
+    restart: always
+
+  # Data Processing & Flows Engine (Node-RED)
+  nodered:
+    build:
+      context: ./nodered
+    container_name: gateway_nodered
+    ports:
+      - "1880:1880"
+    volumes:
+      - ./nodered/data:/data
+    depends_on:
+      - mosquitto
+      - influxdb
+    networks:
+      - gateway_net
+    entrypoint: ["/bin/sh", "-c", "npm install --prefix /data node-red-contrib-influxdb && ./entrypoint.sh"]
+    restart: always
+
+  # Sensor Controller Simulator (Python)
+  simulator:
+    build:
+      context: ./simulator
+    container_name: gateway_simulator
+    depends_on:
+      - mosquitto
+    networks:
+      - gateway_net
+    restart: always
+
+  # Container Management GUI (Portainer CE)
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: gateway_portainer
+    ports:
+      - "9000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    networks:
+      - gateway_net
+    command: --no-setup-token
+    restart: always
+
+  # Automatic Container Updater (Watchtower)
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: gateway_watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_POLL_INTERVAL=30
+      - WATCHTOWER_CLEANUP=true
+    networks:
+      - gateway_net
+    restart: always
