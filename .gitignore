@@ -14,7 +14,6 @@ influxdb_data/
 nodered/data/node_modules/
 nodered/data/.npm/
 nodered/data/.config.json
-nodered/data/flows_cred.json
 portainer_data/
 
 # OS/IDE

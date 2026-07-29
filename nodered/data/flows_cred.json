@@ -1,0 +1,5 @@
+{
+    "influxdb-config": {
+        "token": "my-super-secret-admin-token-123456789"
+    }
+}
