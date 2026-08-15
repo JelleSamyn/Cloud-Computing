@@ -1,7 +1,6 @@
 # Smart Sensor Gateway met Monitoring en Automatisatie
 **Vak**: Cloud Computing  
 **Academiejaar**: 2025-2026  
-**Auteur**: Leroy M. (Individueel Project)  
 
 ---
 
